@@ -2,7 +2,7 @@
 
 # Set the resource group and VM name
 RESOURCE_GROUP="wanderlust-rg"
-VM_NAME="Automate"
+VM_NAME="jenkins-master"
 
 # Retrieve the public IP address of the specified Azure VM
 ipv4_address=$(az vm show -d -g "$RESOURCE_GROUP" -n "$VM_NAME" --query publicIps -o tsv)

@@ -60,30 +60,29 @@ WanderLust is a simple MERN travel blog website ✈ This project is aimed to hel
 > [!Note]
 > This project will be implemented on the East US Azure region.
 
-- <b>Create 1 Master machine on Azure with 2CPU, 8GB of RAM (Standard_D2s_v3) and 30 GB of storage and install Docker on it.</b>
+- <b id="AKS">Provision the Jenkins master VM and the AKS cluster with Terraform, from your local machine (or any bootstrap host — not the VM itself, since this step is what creates it).</b>
+  - Install the Azure CLI and Terraform, then authenticate:
   ```bash
+  curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
   az login
-  az group create --name wanderlust-rg --location "East US"
-  az vm create \
-    --resource-group wanderlust-rg \
-    --name jenkins-master \
-    --image Ubuntu2204 \
-    --size Standard_D2s_v3 \
-    --os-disk-size-gb 30 \
-    --admin-username azureuser \
-    --generate-ssh-keys
+  wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+  echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+  sudo apt-get update -y
+  sudo apt-get install terraform -y
+  ```
+  - Review/override the defaults in [terraform/variables.tf](terraform/variables.tf) (region, VM size, AKS node size/count), then apply. This provisions the resource group, the master VM (2CPU/8GB, `Standard_D2s_v3`, 30GB disk) with an NSG open on ports 22/80/443/8080, and the `wanderlust` AKS cluster (2 nodes) in one go:
+  ```bash
+  cd terraform
+  terraform init
+  terraform plan
+  terraform apply
+  ```
+  - Grab the master VM's public IP and SSH in — everything from here on runs **inside that VM** (the "Master machine") unless stated otherwise:
+  ```bash
+  terraform output -raw vm_public_ip
+  ssh azureuser@<public-ip>
   ```
 #
-- <b>Open the below ports in the network security group (NSG) of the master machine and also attach the same NSG to the Jenkins worker node (We will create worker node shortly)</b>
-  ```bash
-  az network nsg rule create --resource-group wanderlust-rg --nsg-name jenkins-masterNSG --name allow-ssh --priority 100 --destination-port-ranges 22 --protocol Tcp --access Allow
-  az network nsg rule create --resource-group wanderlust-rg --nsg-name jenkins-masterNSG --name allow-http --priority 110 --destination-port-ranges 80 --protocol Tcp --access Allow
-  az network nsg rule create --resource-group wanderlust-rg --nsg-name jenkins-masterNSG --name allow-https --priority 120 --destination-port-ranges 443 --protocol Tcp --access Allow
-  az network nsg rule create --resource-group wanderlust-rg --nsg-name jenkins-masterNSG --name allow-jenkins --priority 130 --destination-port-ranges 8080 --protocol Tcp --access Allow
-  ```
-
-> [!Note]
-> We are creating this master machine because we will configure Jenkins master and run Terraform (VM + AKS cluster provisioning) from here.
 
 Install & Configure Docker by using below command, "newgrp docker" will refresh the group config hence no need to restart the Azure VM.
 
@@ -112,45 +111,17 @@ sudo apt-get install jenkins -y
 ```
 - <b>Now, access Jenkins Master on the browser on port 8080 and configure it</b>.
 #
-- <b id="AKS">Provision the Azure VM and AKS Cluster with Terraform (Master machine)</b>
-  - Install the **Azure CLI** (<a href="https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux">Setup Azure CLI</a>)
+- <b>Install kubectl and the Azure CLI, then fetch AKS credentials (Master machine)</b>
   ```bash
   curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
   az login
-  ```
-
-  - Install **kubectl** (Master machine)
-  ```bash
   az aks install-cli
-  kubectl version --client
-  ```
-
-  - Install **Terraform** (Master machine)
-  ```bash
-  wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
-  echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
-  sudo apt-get update -y
-  sudo apt-get install terraform -y
-  ```
-
-  - <b>Provision the AKS cluster (Master machine)</b>
-
-  This project's [terraform/](terraform) directory provisions both the Jenkins-adjacent Azure VM and the `wanderlust` AKS cluster (2 nodes) in one apply. Review/override the defaults in `terraform/variables.tf` (region, cluster name, node size/count) before running:
-  ```bash
-  cd terraform
-  terraform init
-  terraform plan
-  terraform apply
-  ```
-
-  - <b>Fetch AKS credentials for kubectl (Master machine)</b>
-  ```bash
   az aks get-credentials --resource-group wanderlust-rg --name wanderlust --overwrite-existing
   kubectl get nodes
   ```
 #
 - <b id="Jenkins-worker">Setting up jenkins worker node</b>
-  - Create a new Azure VM (Jenkins Worker) with 2CPU, 8GB of RAM (Standard_D2s_v3) and 30 GB of storage and install java on it
+  - Create a new Azure VM (Jenkins Worker) with 2CPU, 8GB of RAM (Standard_D2s_v3) and 30 GB of storage, reusing the NSG Terraform created for the master, and install java on it
   ```bash
   az vm create \
     --resource-group wanderlust-rg \
@@ -160,7 +131,7 @@ sudo apt-get install jenkins -y
     --os-disk-size-gb 30 \
     --admin-username azureuser \
     --generate-ssh-keys \
-    --nsg jenkins-masterNSG
+    --nsg allow-tls
   ```
   ```bash
   sudo apt update -y

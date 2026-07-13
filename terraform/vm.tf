@@ -61,6 +61,19 @@ resource "azurerm_network_security_group" "allow_user_to_connect" {
     destination_address_prefix = "*"
   }
 
+  security_rule {
+    name                       = "allow-jenkins"
+    description                = "port 8080 allow"
+    priority                   = 130
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "8080"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
   tags = {
     Name = "mysecurity"
   }
@@ -91,8 +104,8 @@ resource "azurerm_network_interface_security_group_association" "wanderlust" {
   network_security_group_id = azurerm_network_security_group.allow_user_to_connect.id
 }
 
-resource "azurerm_linux_virtual_machine" "testinstance" {
-  name                = "Automate"
+resource "azurerm_linux_virtual_machine" "jenkins_master" {
+  name                = "jenkins-master"
   resource_group_name = azurerm_resource_group.wanderlust.name
   location            = azurerm_resource_group.wanderlust.location
   size                = var.vm_size
@@ -120,6 +133,6 @@ resource "azurerm_linux_virtual_machine" "testinstance" {
   }
 
   tags = {
-    Name = "Automate"
+    Name = "jenkins-master"
   }
 }
