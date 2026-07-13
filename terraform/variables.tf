@@ -19,7 +19,7 @@ variable "admin_username" {
 }
 
 variable "ssh_public_key_path" {
-  description = "Path to the SSH public key used to log in to the Jenkins master VM"
+  description = "Path to the SSH public key used to log in to the Jenkins master VM. Must be an RSA key - Azure's admin_ssh_key does not accept ed25519."
   default     = "~/.ssh/wanderlust_azure.pub"
 }
 
@@ -29,8 +29,8 @@ variable "aks_cluster_name" {
 }
 
 variable "kubernetes_version" {
-  description = "Kubernetes version for the AKS cluster"
-  default     = "1.30"
+  description = "Kubernetes version for the AKS cluster. Must be a version currently supported under the standard (non-LTS) support plan in the target region - check with `az aks get-versions --location <region>`."
+  default     = "1.35"
 }
 
 variable "node_count" {
