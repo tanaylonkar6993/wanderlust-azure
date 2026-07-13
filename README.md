@@ -58,7 +58,7 @@ WanderLust is a simple MERN travel blog website ✈ This project is aimed to hel
 #
 
 > [!Note]
-> This project will be implemented on the East US Azure region.
+> This project will be implemented on the West US 2 Azure region. vCPU quotas are per-region/per-family — if `terraform apply` fails with `ErrCode_InsufficientVCPUQuota` or `SkuNotAvailable`, either request a quota increase (Azure Portal → Subscriptions → Usage + quotas) or override `location` in `terraform/variables.tf` to a region with more headroom, re-checking `vm_size`/`node_vm_size`/`kubernetes_version` for that region first.
 
 - <b id="AKS">Provision the Jenkins master VM and the AKS cluster with Terraform, from your local machine (or any bootstrap host — not the VM itself, since this step is what creates it).</b>
   - Install the Azure CLI and Terraform, then authenticate:
@@ -97,7 +97,7 @@ sudo usermod -aG docker azureuser && newgrp docker
 - <b id="Jenkins">Install and configure Jenkins (Master machine)</b>
 ```bash
 sudo apt update -y
-sudo apt install fontconfig openjdk-17-jre -y
+sudo apt install fontconfig openjdk-21-jre -y
 
 sudo wget -O /usr/share/keyrings/jenkins-keyring.asc \
   https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
@@ -135,7 +135,7 @@ sudo apt-get install jenkins -y
   ```
   ```bash
   sudo apt update -y
-  sudo apt install fontconfig openjdk-17-jre -y
+  sudo apt install fontconfig openjdk-21-jre -y
   ```
   - Install the Azure CLI and authenticate the worker node (used by the `Automations/*.sh` scripts to look up the master VM's public IP)
   ```bash

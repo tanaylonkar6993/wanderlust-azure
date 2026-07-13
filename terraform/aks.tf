@@ -15,6 +15,10 @@ resource "azurerm_kubernetes_cluster" "wanderlust" {
     type = "SystemAssigned"
   }
 
+  timeouts {
+    create = "150m"
+  }
+
   tags = {
     Name = "wanderlust"
   }

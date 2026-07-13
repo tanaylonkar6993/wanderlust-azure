@@ -1,6 +1,6 @@
 variable "location" {
-  description = "Azure region where resources will be provisioned"
-  default     = "East US"
+  description = "Azure region where resources will be provisioned. vCPU quotas are per-region/per-family, so if you hit ErrCode_InsufficientVCPUQuota or SkuNotAvailable, try another region here (and re-check `vm_size`/`node_vm_size`/`kubernetes_version` for that region - allowed SKUs and versions vary by region too)."
+  default     = "West US 2"
 }
 
 variable "resource_group_name" {
@@ -9,7 +9,7 @@ variable "resource_group_name" {
 }
 
 variable "vm_size" {
-  description = "Size of the Jenkins master VM"
+  description = "Size of the Jenkins master VM. Must be a SKU allowed for your subscription in the target region - check with `az vm list-skus --location <region> --size Standard_D2 --output table`."
   default     = "Standard_D2s_v3"
 }
 
@@ -39,6 +39,6 @@ variable "node_count" {
 }
 
 variable "node_vm_size" {
-  description = "VM size for the AKS default node pool"
+  description = "VM size for the AKS default node pool. AKS maintains its own supported-size list per region (narrower than the general Microsoft.Compute list) - if you hit VMSizeNotSupported, the error response lists what's valid for your region."
   default     = "Standard_D2s_v3"
 }
