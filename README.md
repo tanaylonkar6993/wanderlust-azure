@@ -77,10 +77,10 @@ WanderLust is a simple MERN travel blog website ✈ This project is aimed to hel
   terraform plan
   terraform apply
   ```
-  - Grab the master VM's public IP and SSH in — everything from here on runs **inside that VM** (the "Master machine") unless stated otherwise:
+  - Grab the master VM's public IP and SSH in with the private key matching `ssh_public_key_path` — everything from here on runs **inside that VM** (the "Master machine") unless stated otherwise:
   ```bash
   terraform output -raw vm_public_ip
-  ssh azureuser@<public-ip>
+  ssh -i ~/.ssh/wanderlust_azure azureuser@<public-ip>
   ```
 #
 
