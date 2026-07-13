@@ -1,10 +1,11 @@
 #!/bin/bash
 
-# Set the Instance ID and path to the .env file
-INSTANCE_ID="i-030da7d31a1dbbffc"
+# Set the resource group and VM name
+RESOURCE_GROUP="wanderlust-rg"
+VM_NAME="Automate"
 
-# Retrieve the public IP address of the specified EC2 instance
-ipv4_address=$(aws ec2 describe-instances --instance-ids $INSTANCE_ID --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+# Retrieve the public IP address of the specified Azure VM
+ipv4_address=$(az vm show -d -g "$RESOURCE_GROUP" -n "$VM_NAME" --query publicIps -o tsv)
 
 # Path to the .env file
 file_to_find="../frontend/.env.docker"

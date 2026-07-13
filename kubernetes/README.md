@@ -3,7 +3,7 @@
 ### In this project, we will learn about how to deploy wanderlust application on Kubernetes.
 
 ### Pre-requisites to implement this project:
--  Create 2 AWS EC2 instance (Ubuntu) with instance type t2.medium and root volume 29GB.
+-  Create 2 Azure VMs (Ubuntu) with size Standard_D2s_v3 and root volume 29GB.
 -  Setup <a href="https://github.com/DevMadhup/wanderlust/blob/devops/kubernetes/kubeadm.md"><u> Kubeadm </a></u>
 
 #

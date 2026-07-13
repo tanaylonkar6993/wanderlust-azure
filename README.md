@@ -7,7 +7,7 @@ WanderLust is a simple MERN travel blog website ✈ This project is aimed to hel
 
 # Wanderlust Mega Project End to End Implementation
 
-### In this demo, we will see how to deploy an end to end three tier MERN stack application on EKS cluster.
+### In this demo, we will see how to deploy an end to end three tier MERN stack application on AKS cluster.
 #
 ### <mark>Project Deployment Flow:</mark>
 <img src="https://github.com/DevMadhup/Wanderlust-Mega-Project/blob/main/Assets/DevSecOps%2BGitOps.gif" />
@@ -23,7 +23,8 @@ WanderLust is a simple MERN travel blog website ✈ This project is aimed to hel
 - Trivy (Filesystem Scan)
 - ArgoCD (CD)
 - Redis (Caching)
-- AWS EKS (Kubernetes)
+- Terraform (Provisioning the Azure VM and AKS cluster)
+- Azure AKS (Kubernetes)
 - Helm (Monitoring using grafana and prometheus)
 
 ### How pipeline will look after deployment:
@@ -33,7 +34,7 @@ WanderLust is a simple MERN travel blog website ✈ This project is aimed to hel
 - <b>CD pipeline to update application version</b>
 ![image](https://github.com/user-attachments/assets/8fd13807-622e-45f7-af23-dcc1ba30ca5d)
 
-- <b>ArgoCD application for deployment on EKS</b>
+- <b>ArgoCD application for deployment on AKS</b>
 ![image](https://github.com/user-attachments/assets/1ea9d486-656e-40f1-804d-2651efb54cf6)
 
 #
@@ -43,7 +44,7 @@ WanderLust is a simple MERN travel blog website ✈ This project is aimed to hel
 | Tech stack    | Installation |
 | -------- | ------- |
 | Jenkins Master | <a href="#Jenkins">Install and configure Jenkins</a>     |
-| eksctl | <a href="#EKS">Install eksctl</a>     |
+| Terraform + AKS | <a href="#AKS">Provision the Azure VM and AKS cluster</a>     |
 | Argocd | <a href="#Argo">Install and configure ArgoCD</a>     |
 | Jenkins-Worker Setup | <a href="#Jenkins-worker">Install and configure Jenkins Worker Node</a>     |
 | OWASP setup | <a href="#Owasp">Install and configure OWASP</a>     |
@@ -57,24 +58,41 @@ WanderLust is a simple MERN travel blog website ✈ This project is aimed to hel
 #
 
 > [!Note]
-> This project will be implemented on North California region (us-west-1).
+> This project will be implemented on the East US Azure region.
 
-- <b>Create 1 Master machine on AWS with 2CPU, 8GB of RAM (t2.large) and 29 GB of storage and install Docker on it.</b>
+- <b>Create 1 Master machine on Azure with 2CPU, 8GB of RAM (Standard_D2s_v3) and 30 GB of storage and install Docker on it.</b>
+  ```bash
+  az login
+  az group create --name wanderlust-rg --location "East US"
+  az vm create \
+    --resource-group wanderlust-rg \
+    --name jenkins-master \
+    --image Ubuntu2204 \
+    --size Standard_D2s_v3 \
+    --os-disk-size-gb 30 \
+    --admin-username azureuser \
+    --generate-ssh-keys
+  ```
 #
-- <b>Open the below ports in security group of master machine and also attach same security group to Jenkins worker node (We will create worker node shortly)</b>
-![image](https://github.com/user-attachments/assets/4e5ecd37-fe2e-4e4b-a6ba-14c7b62715a3)
+- <b>Open the below ports in the network security group (NSG) of the master machine and also attach the same NSG to the Jenkins worker node (We will create worker node shortly)</b>
+  ```bash
+  az network nsg rule create --resource-group wanderlust-rg --nsg-name jenkins-masterNSG --name allow-ssh --priority 100 --destination-port-ranges 22 --protocol Tcp --access Allow
+  az network nsg rule create --resource-group wanderlust-rg --nsg-name jenkins-masterNSG --name allow-http --priority 110 --destination-port-ranges 80 --protocol Tcp --access Allow
+  az network nsg rule create --resource-group wanderlust-rg --nsg-name jenkins-masterNSG --name allow-https --priority 120 --destination-port-ranges 443 --protocol Tcp --access Allow
+  az network nsg rule create --resource-group wanderlust-rg --nsg-name jenkins-masterNSG --name allow-jenkins --priority 130 --destination-port-ranges 8080 --protocol Tcp --access Allow
+  ```
 
 > [!Note]
-> We are creating this master machine because we will configure Jenkins master, eksctl, EKS cluster creation from here.
+> We are creating this master machine because we will configure Jenkins master and run Terraform (VM + AKS cluster provisioning) from here.
 
-Install & Configure Docker by using below command, "NewGrp docker" will refresh the group config hence no need to restart the EC2 machine.
+Install & Configure Docker by using below command, "newgrp docker" will refresh the group config hence no need to restart the Azure VM.
 
 ```bash
 sudo apt-get update
 ```
 ```bash
 sudo apt-get install docker.io -y
-sudo usermod -aG docker ubuntu && newgrp docker
+sudo usermod -aG docker azureuser && newgrp docker
 ```
 #
 - <b id="Jenkins">Install and configure Jenkins (Master machine)</b>
@@ -94,81 +112,64 @@ sudo apt-get install jenkins -y
 ```
 - <b>Now, access Jenkins Master on the browser on port 8080 and configure it</b>.
 #
-- <b id="EKS">Create EKS Cluster on AWS (Master machine)</b>
-  - IAM user with **access keys and secret access keys**
-  - AWSCLI should be configured (<a href="https://github.com/DevMadhup/DevOps-Tools-Installations/blob/main/AWSCLI/AWSCLI.sh">Setup AWSCLI</a>)
+- <b id="AKS">Provision the Azure VM and AKS Cluster with Terraform (Master machine)</b>
+  - Install the **Azure CLI** (<a href="https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux">Setup Azure CLI</a>)
   ```bash
-  curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-  sudo apt install unzip
-  unzip awscliv2.zip
-  sudo ./aws/install
-  aws configure
+  curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  az login
   ```
 
-  - Install **kubectl** (Master machine)(<a href="https://github.com/DevMadhup/DevOps-Tools-Installations/blob/main/Kubectl/Kubectl.sh">Setup kubectl </a>)
+  - Install **kubectl** (Master machine)
   ```bash
-  curl -o kubectl https://amazon-eks.s3.us-west-2.amazonaws.com/1.19.6/2021-01-05/bin/linux/amd64/kubectl
-  chmod +x ./kubectl
-  sudo mv ./kubectl /usr/local/bin
-  kubectl version --short --client
+  az aks install-cli
+  kubectl version --client
   ```
 
-  - Install **eksctl** (Master machine) (<a href="https://github.com/DevMadhup/DevOps-Tools-Installations/blob/main/eksctl%20/eksctl.sh">Setup eksctl</a>)
+  - Install **Terraform** (Master machine)
   ```bash
-  curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
-  sudo mv /tmp/eksctl /usr/local/bin
-  eksctl version
+  wget -O- https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+  echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+  sudo apt-get update -y
+  sudo apt-get install terraform -y
   ```
-  
-  - <b>Create EKS Cluster (Master machine)</b>
+
+  - <b>Provision the AKS cluster (Master machine)</b>
+
+  This project's [terraform/](terraform) directory provisions both the Jenkins-adjacent Azure VM and the `wanderlust` AKS cluster (2 nodes) in one apply. Review/override the defaults in `terraform/variables.tf` (region, cluster name, node size/count) before running:
   ```bash
-  eksctl create cluster --name=wanderlust \
-                      --region=us-east-2 \
-                      --version=1.30 \
-                      --without-nodegroup
+  cd terraform
+  terraform init
+  terraform plan
+  terraform apply
   ```
-  - <b>Associate IAM OIDC Provider (Master machine)</b>
+
+  - <b>Fetch AKS credentials for kubectl (Master machine)</b>
   ```bash
-  eksctl utils associate-iam-oidc-provider \
-    --region us-east-2 \
-    --cluster wanderlust \
-    --approve
+  az aks get-credentials --resource-group wanderlust-rg --name wanderlust --overwrite-existing
+  kubectl get nodes
   ```
-  - <b>Create Nodegroup (Master machine)</b>
-  ```bash
-  eksctl create nodegroup --cluster=wanderlust \
-                       --region=us-east-2 \
-                       --name=wanderlust \
-                       --node-type=t2.large \
-                       --nodes=2 \
-                       --nodes-min=2 \
-                       --nodes-max=2 \
-                       --node-volume-size=29 \
-                       --ssh-access \
-                       --ssh-public-key=eks-nodegroup-key 
-  ```
-> [!Note]
->  Make sure the ssh-public-key "eks-nodegroup-key is available in your aws account"
 #
 - <b id="Jenkins-worker">Setting up jenkins worker node</b>
-  - Create a new EC2 instance (Jenkins Worker) with 2CPU, 8GB of RAM (t2.large) and 29 GB of storage and install java on it
+  - Create a new Azure VM (Jenkins Worker) with 2CPU, 8GB of RAM (Standard_D2s_v3) and 30 GB of storage and install java on it
+  ```bash
+  az vm create \
+    --resource-group wanderlust-rg \
+    --name jenkins-worker \
+    --image Ubuntu2204 \
+    --size Standard_D2s_v3 \
+    --os-disk-size-gb 30 \
+    --admin-username azureuser \
+    --generate-ssh-keys \
+    --nsg jenkins-masterNSG
+  ```
   ```bash
   sudo apt update -y
   sudo apt install fontconfig openjdk-17-jre -y
   ```
-  - Create an IAM role with <mark>administrator access</mark> attach it to the jenkins worker node <mark>Select Jenkins worker node EC2 instance --> Actions --> Security --> Modify IAM role</mark>
-  ![image](https://github.com/user-attachments/assets/1a9060db-db11-40b7-86f0-47a65e8ed68b)
-
-  - Configure AWSCLI (<a href="https://github.com/DevMadhup/DevOps-Tools-Installations/blob/main/AWSCLI/AWSCLI.sh">Setup AWSCLI</a>)
+  - Install the Azure CLI and authenticate the worker node (used by the `Automations/*.sh` scripts to look up the master VM's public IP)
   ```bash
-  sudo su
-  ```
-  ```bash
-  curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-  sudo apt install unzip
-  unzip awscliv2.zip
-  sudo ./aws/install
-  aws configure
+  curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+  az login
   ```
 #
   - <b>generate ssh keys (Master machine) to setup jenkins master-slave</b>
@@ -200,7 +201,7 @@ sudo apt-get install jenkins -y
 
 ```bash
 sudo apt install docker.io -y
-sudo usermod -aG docker ubuntu && newgrp docker
+sudo usermod -aG docker azureuser && newgrp docker
 ```
 #
 - <b id="Sonar">Install and configure SonarQube (Master machine)</b>
@@ -267,7 +268,7 @@ sudo apt-get install trivy -y
   - <b> Now, go to <mark>User Info</mark> and update your argocd password
 #
 ## Steps to add email notification
-- <b id="Mail">Go to your Jenkins Master EC2 instance and allow 465 port number for SMTPS</b>
+- <b id="Mail">Go to your Jenkins Master Azure VM and allow 465 port number for SMTPS</b>
 #
 - <b>Now, we need to generate an application password from our gmail account to authenticate with jenkins</b>
   - <b>Open gmail and go to <mark>Manage your Google Account --> Security</mark></b>
@@ -339,8 +340,7 @@ sudo apt-get install trivy -y
 ![image](https://github.com/user-attachments/assets/16527e72-6691-4fdf-a8d2-83dd27a085cb)
 ![image](https://github.com/user-attachments/assets/a8b45948-766a-49a4-b779-91ac3ce0443c)
 #
-- <b>Now, go to github repository and under <mark>Automations</mark> directory update the <mark>instance-id</mark> field on both the <mark>updatefrontendnew.sh updatebackendnew.sh</mark> with the k8s worker's instance id</b>
-![image](https://github.com/user-attachments/assets/3cb044b4-df88-4d68-bf7c-775cf78d5bf2)
+- <b>Now, go to github repository and under <mark>Automations</mark> directory update the <mark>RESOURCE_GROUP</mark> and <mark>VM_NAME</mark> fields on both <mark>updatefrontendnew.sh updatebackendnew.sh</mark> to match your Azure resource group and Jenkins worker VM name</b>
 #
 - <b>Navigate to <mark> Manage Jenkins --> credentials</mark> and add credentials for docker login to push docker image:</b>
 ![image](https://github.com/user-attachments/assets/1a8287fc-b205-4156-8342-3f660f15e8fa)
@@ -360,7 +360,7 @@ chmod 777 /var/run/docker.sock
 ```
 ![image](https://github.com/user-attachments/assets/e231c62a-7adb-4335-b67e-480758713dbf)
 #
-- <b> Go to Master Machine and add our own eks cluster to argocd for application deployment using cli</b>
+- <b> Go to Master Machine and add our own AKS cluster to argocd for application deployment using cli</b>
   - <b>Login to argoCD from CLI</b>
   ```bash
    argocd login 52.53.156.187:32738 --username admin
@@ -382,10 +382,10 @@ chmod 777 /var/run/docker.sock
   ![image](https://github.com/user-attachments/assets/4cab99aa-cef3-45f6-9150-05004c2f09f8)
   - <b>Add your cluster to argocd</b>
   ```bash
-  argocd cluster add Wanderlust@wanderlust.us-west-1.eksctl.io --name wanderlust-eks-cluster
+  argocd cluster add wanderlust --name wanderlust-aks-cluster
   ```
   > [!Tip]
-  > Wanderlust@wanderlust.us-west-1.eksctl.io --> This should be your EKS Cluster Name.
+  > wanderlust --> This should be the context name from `kubectl config get-contexts` (matches the AKS cluster name set via `az aks get-credentials`).
 
   ![image](https://github.com/user-attachments/assets/0f36aafd-bab9-4ef8-ba5d-3eb56d850604)
   - <b> Once your cluster is added to argocd, go to argocd console <mark>Settings --> Clusters</mark> and verify it</b>
@@ -408,7 +408,7 @@ chmod 777 /var/run/docker.sock
 ![image](https://github.com/user-attachments/assets/55dcd3c2-5424-4efb-9bee-1c12bbf7f158)
 ![image](https://github.com/user-attachments/assets/3e2468ff-8cb2-4bda-a8cc-0742cd6d0cae)
 
-- <b>Congratulations, your application is deployed on AWS EKS Cluster</b>
+- <b>Congratulations, your application is deployed on Azure AKS Cluster</b>
 ![image](https://github.com/user-attachments/assets/bc2d9680-fe00-49f9-81bf-93c5595c20cc)
 ![image](https://github.com/user-attachments/assets/1ea9d486-656e-40f1-804d-2651efb54cf6)
 - <b>Open port 31000 and 31100 on worker node and Access it on browser</b>
@@ -422,7 +422,7 @@ chmod 777 /var/run/docker.sock
 ![image](https://github.com/user-attachments/assets/0ab1ef47-f939-4618-8651-6aa9274721f4)
 
 #
-## How to monitor EKS cluster, kubernetes components and workloads using prometheus and grafana via HELM (On Master machine)
+## How to monitor the AKS cluster, kubernetes components and workloads using prometheus and grafana via HELM (On Master machine)
 - <p id="Monitor">Install Helm Chart</p>
 ```bash
 curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
@@ -520,9 +520,10 @@ kubectl get secret --namespace prometheus stable-grafana -o jsonpath="{.data.adm
 
 #
 ## Clean Up
-- <b id="Clean">Delete eks cluster</b>
+- <b id="Clean">Delete the AKS cluster and Azure VM (Terraform-managed resources)</b>
 ```bash
-eksctl delete cluster --name=wanderlust --region=us-west-1
+cd terraform
+terraform destroy
 ```
 
 #
