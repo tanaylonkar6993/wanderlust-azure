@@ -70,7 +70,7 @@ WanderLust is a simple MERN travel blog website ✈ This project is aimed to hel
   sudo apt-get update -y
   sudo apt-get install terraform -y
   ```
-  - Review/override the defaults in [terraform/variables.tf](terraform/variables.tf) (region, VM size, AKS node size/count), then apply. This provisions the resource group, the master VM (2CPU/8GB, `Standard_D2s_v3`, 30GB disk) with an NSG open on ports 22/80/443/8080, and the `wanderlust` AKS cluster (1 node by default - VM + node together fit a typical trial subscription's regional vCPU quota; bump `node_count` once you've confirmed/increased your quota) in one go:
+  - Review/override the defaults in [terraform/variables.tf](terraform/variables.tf) (region, VM size, AKS node size/count), then apply. This provisions the resource group, the master VM (2CPU/8GB, `Standard_D2s_v3`, 30GB disk) with an NSG open on ports 22/80/443/8080/9000 (SSH/HTTP/HTTPS/Jenkins/SonarQube), and the `wanderlust` AKS cluster (1 node by default - VM + node together fit a typical trial subscription's regional vCPU quota; bump `node_count` once you've confirmed/increased your quota) in one go:
   ```bash
   cd terraform
   terraform init
@@ -135,6 +135,7 @@ sudo apt-get install jenkins -y
 ```bash
 docker run -itd --name SonarQube-Server -p 9000:9000 sonarqube:lts-community
 ```
+  - Access it in your browser at `http://<master-vm-public-ip>:9000` (default login: `admin` / `admin`, you'll be prompted to change it). Give the container a minute or two to finish starting up on first run.
 #
 - <b id="Trivy">Install Trivy (Master machine)</b>
 ```bash

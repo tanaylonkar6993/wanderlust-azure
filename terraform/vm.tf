@@ -74,6 +74,19 @@ resource "azurerm_network_security_group" "allow_user_to_connect" {
     destination_address_prefix = "*"
   }
 
+  security_rule {
+    name                       = "allow-sonarqube"
+    description                = "port 9000 allow"
+    priority                   = 140
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "9000"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
   tags = {
     Name = "mysecurity"
   }
