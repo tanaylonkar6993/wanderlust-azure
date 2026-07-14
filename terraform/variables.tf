@@ -34,8 +34,8 @@ variable "kubernetes_version" {
 }
 
 variable "node_count" {
-  description = "Number of nodes in the AKS default node pool"
-  default     = 2
+  description = "Number of nodes in the AKS default node pool. Kept at 1 by default since VM(2 vCPU) + node(2 vCPU) = 4 fits a typical trial subscription's default regional vCPU quota - bump this once you've confirmed/increased your quota (see `az vm list-usage --location <region>`)."
+  default     = 1
 }
 
 variable "node_vm_size" {
