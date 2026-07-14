@@ -170,21 +170,22 @@ sudo apt-get install trivy -y
   ```bash
   kubectl get svc -n argocd
   ```
-  - <b>Change argocd server's service from ClusterIP to NodePort</b>
+  - <b>Change argocd server's service from ClusterIP to LoadBalancer</b>
+
+  > [!Note]
+  > The original tutorial uses `NodePort` and opens the port on the Kubernetes worker node's security group - that only works because self-managed EKS nodes get public IPs directly. AKS nodes are private by default (they live in a separate, Azure-managed resource group `MC_<rg>_<cluster>_<region>` with their own networking), so a NodePort service isn't reachable that way here. `LoadBalancer` is the AKS-native equivalent: Azure automatically provisions a public IP and load balancer rule for the service.
   ```bash
-  kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "NodePort"}}'
+  kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
   ```
-  - <b>Confirm service is patched or not</b>
+  - <b>Wait for Azure to assign a public IP, then confirm</b>
   ```bash
-  kubectl get svc -n argocd
+  kubectl get svc argocd-server -n argocd -w
+  # watch until EXTERNAL-IP changes from <pending> to a real IP, then Ctrl+C
   ```
-  - <b> Check the port where ArgoCD server is running and expose it on security groups of a worker node</b>
-  ![image](https://github.com/user-attachments/assets/a2932e03-ebc7-42a6-9132-82638152197f)
-  - <b>Access it on browser, click on advance and proceed with</b>
+  - <b>Access it on browser (ArgoCD serves HTTPS with a self-signed cert by default, so your browser will warn - that's expected)</b>
   ```bash
-  <public-ip-worker>:<port>
+  https://<EXTERNAL-IP>
   ```
-  ![image](https://github.com/user-attachments/assets/29d9cdbd-5b7c-44b3-bb9b-1d091d042ce3)
   ![image](https://github.com/user-attachments/assets/08f4e047-e21c-4241-ba68-f9b719a4a39a)
   ![image](https://github.com/user-attachments/assets/1ffa85c3-9055-49b4-aab0-0947b95f0dd2)
   - <b>Fetch the initial password of argocd server</b>
