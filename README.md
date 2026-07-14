@@ -46,7 +46,7 @@ WanderLust is a simple MERN travel blog website ✈ This project is aimed to hel
 | Jenkins Master | <a href="#Jenkins">Install and configure Jenkins</a>     |
 | Terraform + AKS | <a href="#AKS">Provision the Azure VM and AKS cluster</a>     |
 | Argocd | <a href="#Argo">Install and configure ArgoCD</a>     |
-| Jenkins-Worker Setup | <a href="#Jenkins-worker">Install and configure Jenkins Worker Node</a>     |
+| Jenkins-Worker Setup | <a href="#Jenkins-worker">Jenkins worker node (optional - skipped by default here)</a>     |
 | OWASP setup | <a href="#Owasp">Install and configure OWASP</a>     |
 | SonarQube | <a href="#Sonar">Install and configure SonarQube</a>     |
 | Email Notification Setup | <a href="#Mail">Email notification setup</a>     |
@@ -95,12 +95,16 @@ sudo usermod -aG docker azureuser && newgrp docker
 ```
 #
 - <b id="Jenkins">Install and configure Jenkins (Master machine)</b>
+
+> [!Note]
+> Jenkins rotates its apt signing key periodically (the URL below embeds the year). If `apt-get update` fails with `NO_PUBKEY`, check <a href="https://www.jenkins.io/doc/book/installing/linux/">Jenkins' current install docs</a> for the current key URL.
+
 ```bash
 sudo apt update -y
 sudo apt install fontconfig openjdk-21-jre -y
 
 sudo wget -O /usr/share/keyrings/jenkins-keyring.asc \
-  https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+  https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key
   
 echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc]" \
   https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
@@ -120,67 +124,19 @@ sudo apt-get install jenkins -y
   kubectl get nodes
   ```
 #
-- <b id="Jenkins-worker">Setting up jenkins worker node</b>
-  - Create a new Azure VM (Jenkins Worker) with 2CPU, 8GB of RAM (Standard_D2s_v3) and 30 GB of storage, reusing the NSG Terraform created for the master, and install java on it
-  ```bash
-  az vm create \
-    --resource-group wanderlust-rg \
-    --name jenkins-worker \
-    --image Ubuntu2204 \
-    --size Standard_D2s_v3 \
-    --os-disk-size-gb 30 \
-    --admin-username azureuser \
-    --generate-ssh-keys \
-    --nsg allow-tls
-  ```
-  ```bash
-  sudo apt update -y
-  sudo apt install fontconfig openjdk-21-jre -y
-  ```
-  - Install the Azure CLI and authenticate the worker node (used by the `Automations/*.sh` scripts to look up the master VM's public IP)
-  ```bash
-  curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-  az login
-  ```
-#
-  - <b>generate ssh keys (Master machine) to setup jenkins master-slave</b>
-  ```bash
-  ssh-keygen
-  ```
-  ![image](https://github.com/user-attachments/assets/0c8ecb74-1bc5-46f9-ad55-1e22e8092198)
-#
-  - <b>Now move to directory where your ssh keys are generated and copy the content of public key and paste to authorized_keys file of the Jenkins worker node.</b>
-#
-  - <b>Now, go to the jenkins master and navigate to <mark>Manage jenkins --> Nodes</mark>, and click on Add node </b>
-    - <b>name:</b> Node
-    - <b>type:</b> permanent agent
-    - <b>Number of executors:</b> 2
-    - Remote root directory
-    - <b>Labels:</b> Node
-    - <b>Usage:</b> Only build jobs with label expressions matching this node
-    - <b>Launch method:</b> Via ssh
-    - <b>Host:</b> \<public-ip-worker-jenkins\>
-    - <b>Credentials:</b> <mark>Add --> Kind: ssh username with private key --> ID: Worker --> Description: Worker --> Username: root --> Private key: Enter directly --> Add Private key</mark>
-    - <b>Host Key Verification Strategy:</b> Non verifying Verification Strategy
-    - <b>Availability:</b> Keep this agent online as much as possible
-#
-  - And your jenkins worker node is added
-  ![image](https://github.com/user-attachments/assets/cab93696-a4e2-4501-b164-8287d7077eef)
+- <b id="Jenkins-worker">Jenkins worker node (skipped - running single-machine)</b>
 
-# 
-- <b id="docker">Install docker (Jenkins Worker)</b>
+> [!Note]
+> The original tutorial runs builds on a separate Jenkins worker VM. That's skipped here to fit within a constrained Azure vCPU quota (`jenkins-master` + the AKS node already consume the full available quota - see the note under [Provision the Azure VM and AKS Cluster](#AKS)). Instead, Jenkins pipelines run directly on the master's built-in executor. If you have quota headroom, you can still add a real worker later: create a second VM with the same specs as `jenkins-master` (`Standard_D2s_v3`, 30GB disk, in `wanderlust-rg`, using the `allow-tls` NSG Terraform already created - either via `az vm create` directly or by adding a second `azurerm_linux_virtual_machine` resource to `terraform/vm.tf`), install Java/Docker/Trivy on it, then register it under <mark>Manage Jenkins --> Nodes --> Add node</mark> (Launch method: Via SSH) with Label `Node` - no Jenkinsfile changes needed, since both Jenkinsfiles already target `agent {label 'Node'}`.
 
-```bash
-sudo apt install docker.io -y
-sudo usermod -aG docker azureuser && newgrp docker
-```
+- <b>Instead, label the master's built-in node so it picks up jobs targeting `agent {label 'Node'}`:</b> go to <mark>Manage Jenkins --> Nodes --> built-in node --> Configure</mark>, set <b>Number of executors</b> to 2, and add <b>Labels:</b> `Node`.
 #
 - <b id="Sonar">Install and configure SonarQube (Master machine)</b>
 ```bash
 docker run -itd --name SonarQube-Server -p 9000:9000 sonarqube:lts-community
 ```
 #
-- <b id="Trivy">Install Trivy (Jenkins Worker)</b>
+- <b id="Trivy">Install Trivy (Master machine)</b>
 ```bash
 sudo apt-get install wget apt-transport-https gnupg lsb-release -y
 wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
@@ -276,10 +232,10 @@ sudo apt-get install trivy -y
   - Docker
   - Pipeline: Stage View
 #
-- <b id="Owasp">Configure OWASP, move to <mark>Manage Jenkins --> Plugins --> Available plugins</mark> (Jenkins Worker)</b>
+- <b id="Owasp">Configure OWASP, move to <mark>Manage Jenkins --> Plugins --> Available plugins</mark> (Master machine)</b>
 ![image](https://github.com/user-attachments/assets/da6a26d3-f742-4ea8-86b7-107b1650a7c2)
 
-- <b id="Sonar">After OWASP plugin is installed, Now move to <mark>Manage jenkins --> Tools</mark> (Jenkins Worker)</b>
+- <b id="Sonar">After OWASP plugin is installed, Now move to <mark>Manage jenkins --> Tools</mark> (Master machine)</b>
 ![image](https://github.com/user-attachments/assets/3b8c3f20-202e-4864-b3b6-b48d7a604ee8)
 #
 - <b>Login to SonarQube server and create the credentials for jenkins to integrate with SonarQube</b>
@@ -325,7 +281,7 @@ sudo apt-get install trivy -y
 ![image](https://github.com/user-attachments/assets/ac79f7e6-c02c-4431-bb3b-5c7489a93a63)
 ![image](https://github.com/user-attachments/assets/46a5937f-e06e-4265-ac0f-42543576a5cd)
 #
-- <b>Provide permission to docker socket so that docker build and push command do not fail (Jenkins Worker)</b>
+- <b>Provide permission to docker socket so that docker build and push command do not fail (Master machine)</b>
 ```bash
 chmod 777 /var/run/docker.sock
 ```
