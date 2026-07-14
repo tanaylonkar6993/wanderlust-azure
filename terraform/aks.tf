@@ -15,6 +15,8 @@ resource "azurerm_kubernetes_cluster" "wanderlust" {
     type = "SystemAssigned"
   }
 
+  oidc_issuer_enabled = true
+
   timeouts {
     create = "150m"
   }
