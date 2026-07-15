@@ -87,6 +87,32 @@ resource "azurerm_network_security_group" "allow_user_to_connect" {
     destination_address_prefix = "*"
   }
 
+  security_rule {
+    name                       = "allow-grafana"
+    description                = "port 3000 allow (kubectl port-forward, public IP quota exhausted)"
+    priority                   = 150
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "3000"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-prometheus"
+    description                = "port 9090 allow (kubectl port-forward, public IP quota exhausted)"
+    priority                   = 160
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "9090"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
   tags = {
     Name = "mysecurity"
   }
