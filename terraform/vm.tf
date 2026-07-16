@@ -113,6 +113,32 @@ resource "azurerm_network_security_group" "allow_user_to_connect" {
     destination_address_prefix = "*"
   }
 
+  security_rule {
+    name                       = "allow-frontend"
+    description                = "port 5173 allow (kubectl port-forward, public IP quota exhausted)"
+    priority                   = 170
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "5173"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "allow-backend"
+    description                = "port 8081 allow (kubectl port-forward to backend-service, public IP quota exhausted; 8080 taken by Jenkins)"
+    priority                   = 180
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "8081"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
   tags = {
     Name = "mysecurity"
   }
